@@ -1,10 +1,7 @@
-import os
-
 import httpx
 from fastapi import HTTPException
 
-# TODO: pindah ke app.config (settings.ML_SERVICE_URL) setelah config.py dari Lead tersedia
-ML_SERVICE_URL = os.getenv("ML_SERVICE_URL", "http://localhost:8001")
+from app.config import settings
 
 IMAGE_TIMEOUT = 60.0
 VIDEO_TIMEOUT = 300.0
@@ -24,7 +21,7 @@ async def _post(
     params: dict | None = None,
     json: dict | None = None,
 ) -> dict:
-    url = f"{ML_SERVICE_URL}{path}"
+    url = f"{settings.ML_SERVICE_URL}{path}"
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.post(
