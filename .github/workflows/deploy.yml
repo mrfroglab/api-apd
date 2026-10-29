@@ -50,6 +50,7 @@ jobs:
   deploy:
     name: Deploy to Thinkpad Server
     needs: build
+    if: github.repository_owner == 'mrfroglab'
     runs-on: self-hosted
     steps:
       - name: Log in to GitHub Container Registry
