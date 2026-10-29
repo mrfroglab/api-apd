@@ -1,0 +1,12 @@
+.git
+.venv
+venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+apd_gateway.db
+*.db
+*.sqlite3
+.env
+.DS_Store
