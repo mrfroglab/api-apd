@@ -1,0 +1,21 @@
+meta {
+  name: 04 - Get User Profile (Me)
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/auth/me
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{authToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.username: eq janu_supervisor
+  res.body.role: eq supervisor
+}

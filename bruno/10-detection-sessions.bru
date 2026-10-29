@@ -1,0 +1,20 @@
+meta {
+  name: 10 - List Detection Sessions
+  type: http
+  seq: 10
+}
+
+get {
+  url: {{baseUrl}}/detect/sessions?limit=5
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{authToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body: isDefined
+}

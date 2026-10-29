@@ -1,0 +1,20 @@
+meta {
+  name: 09 - Dashboard Worker Records
+  type: http
+  seq: 9
+}
+
+get {
+  url: {{baseUrl}}/dashboard/worker-records?limit=10
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{authToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body: isDefined
+}

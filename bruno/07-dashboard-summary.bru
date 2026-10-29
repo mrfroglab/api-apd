@@ -1,0 +1,21 @@
+meta {
+  name: 07 - Dashboard Summary
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/dashboard/summary
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{authToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.total_sessions: isDefined
+  res.body.compliance_rate: isDefined
+}

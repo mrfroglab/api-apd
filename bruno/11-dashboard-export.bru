@@ -1,0 +1,20 @@
+meta {
+  name: 11 - Export CSV Report
+  type: http
+  seq: 11
+}
+
+get {
+  url: {{baseUrl}}/dashboard/export
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{authToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.headers['content-type']: contains text/csv
+}

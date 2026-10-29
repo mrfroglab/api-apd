@@ -1,0 +1,41 @@
+meta {
+  name: 06 - Update Settings
+  type: http
+  seq: 6
+}
+
+put {
+  url: {{baseUrl}}/settings
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "roi": {
+      "active": true,
+      "x1": 0.0,
+      "y1": 0.0,
+      "x2": 1.0,
+      "y2": 1.0
+    },
+    "thresholds": {
+      "overlap_threshold": 0.3,
+      "person_conf": 0.5,
+      "helm_conf": 0.5,
+      "glove_conf": 0.4,
+      "sepatu_conf": 0.4,
+      "kacamata_conf": 0.35,
+      "enable_head_zoom": true,
+      "head_crop_ratio": 0.35,
+      "head_zoom_conf": 0.4,
+      "enable_temporal_persistence": true,
+      "temporal_memory_frames": 5
+    }
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.roi.active: eq true
+}

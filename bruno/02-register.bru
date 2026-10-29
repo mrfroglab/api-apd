@@ -1,0 +1,25 @@
+meta {
+  name: 02 - Register Supervisor
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/auth/register
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "username": "janu_supervisor",
+    "email": "janu@apd-migas.id",
+    "full_name": "Januarsyah Supervisor",
+    "password": "PasswordMigas2026!",
+    "role": "supervisor"
+  }
+}
+
+assert {
+  res.status: in [201, 400]
+}
