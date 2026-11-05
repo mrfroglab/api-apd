@@ -1,0 +1,30 @@
+meta {
+  name: 14 - Create Camera
+  type: http
+  seq: 14
+}
+
+post {
+  url: {{baseUrl}}/cameras
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+body:json {
+  {
+    "code": "CAM-05",
+    "name": "CAM-05 Generator Room",
+    "location": "Power Station",
+    "is_active": true,
+    "fps": 25.0
+  }
+}
+
+assert {
+  res.status: eq 201
+  res.body.code: eq CAM-05
+}

@@ -1,0 +1,27 @@
+meta {
+  name: 21 - Handle Violation
+  type: http
+  seq: 21
+}
+
+post {
+  url: {{baseUrl}}/violations/1/handle
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+body:json {
+  {
+    "note": "Pekerja diberikan safety glasses cadangan dari loker K3."
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.status: eq handled
+  res.body.handled_by: isDefined
+}

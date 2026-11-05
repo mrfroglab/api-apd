@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
+from app.schemas.base import AppBaseModel
 
 
 class ROIConfig(BaseModel):
@@ -25,11 +26,17 @@ class ThresholdsConfig(BaseModel):
     head_zoom_conf: float = Field(0.4, ge=0, le=1)
     enable_temporal_persistence: bool = True
     temporal_memory_frames: int = Field(5, ge=1, le=60)
+    sampling_fps: int = Field(5, ge=1, le=60)
+    alarm_delay_s: int = Field(10, ge=0, le=300)
+    iou_threshold: float = Field(0.45, ge=0, le=1)
 
 
-class SettingsResponse(BaseModel):
+class SettingsResponse(AppBaseModel):
     roi: ROIConfig
     thresholds: ThresholdsConfig
+    sampling_fps: int = 5
+    alarm_delay_s: int = 10
+    iou_threshold: float = 0.45
     updated_at: datetime
 
 
@@ -37,3 +44,6 @@ class SettingsUpdateRequest(BaseModel):
     """Partial update: kirim hanya field yang ingin diubah."""
     roi: ROIConfig | None = None
     thresholds: ThresholdsConfig | None = None
+    sampling_fps: int | None = Field(default=None, ge=1, le=60)
+    alarm_delay_s: int | None = Field(default=None, ge=0, le=300)
+    iou_threshold: float | None = Field(default=None, ge=0, le=1)

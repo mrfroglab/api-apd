@@ -1,0 +1,27 @@
+meta {
+  name: 15 - Update Camera
+  type: http
+  seq: 15
+}
+
+patch {
+  url: {{baseUrl}}/cameras/CAM-01
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+body:json {
+  {
+    "name": "CAM-01 Drill Floor (Active)",
+    "fps": 25.0
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.code: eq CAM-01
+}

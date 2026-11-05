@@ -1,0 +1,36 @@
+meta {
+  name: 18 - Update Camera ROIs
+  type: http
+  seq: 18
+}
+
+put {
+  url: {{baseUrl}}/cameras/CAM-01/rois
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+body:json {
+  [
+    {
+      "name": "Drill Floor Red Zone",
+      "points": [
+        [0.17, 0.30],
+        [0.80, 0.24],
+        [0.91, 0.84],
+        [0.10, 0.89]
+      ],
+      "kind": "red_zone",
+      "required_apd": ["helm", "kacamata", "glove", "sepatu"]
+    }
+  ]
+}
+
+assert {
+  res.status: eq 200
+  res.body: isDefined
+}

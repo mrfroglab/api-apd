@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
+from app.schemas.base import AppBaseModel
 
 
 # ---------- Request (query params / body yang diteruskan ke ml-apd) ----------
@@ -33,6 +34,7 @@ class StreamFrameRequest(BaseModel):
     client_id: str
     session_code: str
     frame_base64: str
+    camera_code: str | None = None
 
 
 # ---------- Response ke FE ----------
@@ -68,6 +70,7 @@ class VideoDetectionResponse(BaseModel):
     annotated_sample_frames: list[Any] = []
     processing_time_sec: float | None = None
     workers_summary: list[dict[str, Any]] = []
+    frames: list[dict[str, Any]] | None = None
     status: str
 
 
@@ -85,13 +88,19 @@ class StreamFrameResponse(BaseModel):
 
 # ---------- Histori sesi (dibaca dari database) ----------
 
-class WorkerRecordResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class WorkerRecordResponse(AppBaseModel):
     id: int
     session_id: int
+    worker_id: str | None = None
     frame_idx: int | None = None
     track_id: int | None = None
+    camera_code: str | None = None
+    location: str | None = None
+    status: str | None = None
+    missing_apd: str | None = None
+    handled_at: datetime | None = None
+    handled_by: str | None = None
+    handling_note: str | None = None
     bbox_x1: float | None = None
     bbox_y1: float | None = None
     bbox_x2: float | None = None
@@ -106,9 +115,7 @@ class WorkerRecordResponse(BaseModel):
     detected_at: datetime | None = None
 
 
-class SessionListItem(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class SessionListItem(AppBaseModel):
     id: int
     session_code: str
     source_type: str
@@ -118,6 +125,8 @@ class SessionListItem(BaseModel):
     non_compliant_workers_count: int
     compliance_rate: float
     created_at: datetime
+    camera_code: str | None = None
+    location: str | None = None
 
 
 class SessionDetailResponse(SessionListItem):

@@ -1,4 +1,7 @@
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 class Settings:
@@ -9,6 +12,9 @@ class Settings:
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./apd_gateway.db")
     CORS_ORIGINS: list[str] = [x.strip() for x in os.getenv("CORS_ORIGINS", "*").split(",")]
     ML_SERVICE_URL: str = os.getenv("ML_SERVICE_URL", "http://localhost:8001")
+    PORT: int = int(os.getenv("PORT", "8000"))
+    APP_TZ: str = os.getenv("APP_TZ", "Asia/Jakarta")
+    PMLD_DEMO_NOW: str | None = os.getenv("PMLD_DEMO_NOW", None)
 
 
 settings = Settings()

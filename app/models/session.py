@@ -13,6 +13,8 @@ class DetectionSession(Base):
     source_type = Column(String(20), nullable=False)  # "image", "video", "stream"
     filename = Column(String(255), nullable=True)
     annotated_output_path = Column(String(500), nullable=True)
+    camera_code = Column(String(50), nullable=True)
+    location = Column(String(100), nullable=True)
 
     total_frames = Column(Integer, default=1, nullable=False)
     total_workers_detected = Column(Integer, default=0, nullable=False)

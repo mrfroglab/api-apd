@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Optional, Literal
 from pydantic import BaseModel, EmailStr, Field
+from app.schemas.base import AppBaseModel
 
 
 class UserRegister(BaseModel):
@@ -16,7 +17,7 @@ class UserLogin(BaseModel):
     password: str
 
 
-class UserResponse(BaseModel):
+class UserResponse(AppBaseModel):
     id: int
     username: str
     email: str
@@ -24,9 +25,6 @@ class UserResponse(BaseModel):
     role: str
     is_active: bool
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class Token(BaseModel):

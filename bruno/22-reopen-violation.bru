@@ -1,0 +1,20 @@
+meta {
+  name: 22 - Reopen Violation
+  type: http
+  seq: 22
+}
+
+post {
+  url: {{baseUrl}}/violations/1/reopen
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.status: eq open
+}

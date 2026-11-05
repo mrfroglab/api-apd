@@ -1,0 +1,21 @@
+meta {
+  name: 19 - List Violations
+  type: http
+  seq: 19
+}
+
+get {
+  url: {{baseUrl}}/violations?status=open
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.total: isDefined
+  res.body.items: isDefined
+}

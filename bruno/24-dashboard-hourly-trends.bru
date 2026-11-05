@@ -1,0 +1,20 @@
+meta {
+  name: 24 - Dashboard Hourly Trends
+  type: http
+  seq: 24
+}
+
+get {
+  url: {{baseUrl}}/dashboard/compliance-trends?granularity=hour&date=2026-11-04&start=07:00&end=19:00
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body: isDefined
+}

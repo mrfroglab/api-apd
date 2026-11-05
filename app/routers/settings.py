@@ -28,6 +28,9 @@ def to_response(s: SystemSettings) -> SettingsResponse:
     return SettingsResponse(
         roi=ROIConfig(active=s.roi_active, x1=s.roi_x1, y1=s.roi_y1, x2=s.roi_x2, y2=s.roi_y2),
         thresholds=ThresholdsConfig.model_validate(s),
+        sampling_fps=s.sampling_fps,
+        alarm_delay_s=s.alarm_delay_s,
+        iou_threshold=s.iou_threshold,
         updated_at=s.updated_at,
     )
 
@@ -56,6 +59,12 @@ async def update_settings(
         for key, val in body.thresholds.model_dump(exclude_unset=True).items():
             setattr(s, key, val)
 
+    if body.sampling_fps is not None:
+        s.sampling_fps = body.sampling_fps
+    if body.alarm_delay_s is not None:
+        s.alarm_delay_s = body.alarm_delay_s
+    if body.iou_threshold is not None:
+        s.iou_threshold = body.iou_threshold
     await db.commit()
     await db.refresh(s)
     return to_response(s)

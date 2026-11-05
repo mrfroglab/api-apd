@@ -17,7 +17,10 @@ class WorkerRecord(Base):
     )
     frame_idx = Column(Integer, nullable=True)
     track_id = Column(Integer, nullable=True)
+    worker_id = Column(String(50), nullable=True, index=True)
 
+    camera_code = Column(String(50), nullable=True)
+    location = Column(String(100), nullable=True)
     bbox_x1 = Column(Float, nullable=True)
     bbox_y1 = Column(Float, nullable=True)
     bbox_x2 = Column(Float, nullable=True)
@@ -30,6 +33,11 @@ class WorkerRecord(Base):
     kacamata_worn = Column(Boolean, nullable=True)
 
     is_compliant = Column(Boolean, default=False, nullable=False)
+    status = Column(String(20), default="open", nullable=True)  # "open" | "handled"
+    missing_apd = Column(Text, nullable=True)  # JSON text e.g. ["kacamata"]
+    handled_at = Column(DateTime, nullable=True)
+    handled_by = Column(String(150), nullable=True)
+    handling_note = Column(Text, nullable=True)
     detection_details = Column(Text, nullable=True)  # JSON text
     detected_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 

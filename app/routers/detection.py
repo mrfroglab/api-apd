@@ -1,16 +1,21 @@
 import json
+from datetime import datetime, timezone
+from app.core.time import get_now, to_iso_with_tz
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.deps import get_current_user, get_current_user_optional
 from app.database import get_db
+from app.models.camera import Camera
 from app.models.session import DetectionSession
 from app.models.user import User
+from app.models.violation import Violation
 from app.models.worker import WorkerRecord
+from app.services.ws_manager import ws_manager
 from app.schemas.detection import (
     ImageDetectionResponse,
     SessionDetailResponse,
@@ -29,9 +34,29 @@ from app.services.ml_client import (
 router = APIRouter(prefix="/detect", tags=["detection"])
 
 
+async def _resolve_camera(camera_code: Optional[str], request: Request, db: AsyncSession):
+    code = camera_code
+    if not code:
+        code = request.query_params.get("camera_code")
+    if not code:
+        try:
+            form = await request.form()
+            code = form.get("camera_code")
+        except Exception:
+            pass
+    location = None
+    if code:
+        cam = (await db.execute(select(Camera).where(Camera.code == code))).scalar_one_or_none()
+        if cam:
+            location = cam.location
+    return code, location
+
+
 @router.post("/image", response_model=ImageDetectionResponse)
 async def detect_image(
+    request: Request,
     file: UploadFile = File(...),
+    camera_code: Optional[str] = Query(None),
     overlap_threshold: Optional[float] = Query(None, ge=0.0, le=1.0),
     person_conf: Optional[float] = Query(None, ge=0.0, le=1.0),
     helm_conf: Optional[float] = Query(None, ge=0.0, le=1.0),
@@ -95,11 +120,14 @@ async def detect_image(
             if not checklist.get("kacamata", True):
                 kacamata_violations += 1
 
+    cam_code, cam_location = await _resolve_camera(camera_code, request, db)
     session = DetectionSession(
         session_code=ml_result.get("session_code"),
         source_type="image",
         filename=file.filename,
         annotated_output_path=ml_result.get("annotated_image_url"),
+        camera_code=cam_code,
+        location=cam_location,
         total_frames=1,
         total_workers_detected=ml_result.get("total_workers", len(workers_data)),
         compliant_workers_count=ml_result.get("compliant_workers_count", 0),
@@ -116,10 +144,20 @@ async def detect_image(
     for w in workers_data:
         bbox = w.get("bbox", {})
         checklist = w.get("checklist", {})
+        missing_list = []
+        if checklist:
+            for apd_name in ["helm", "kacamata", "glove", "sepatu"]:
+                if checklist.get(apd_name) is False:
+                    missing_list.append(apd_name)
+        is_comp = bool(w.get("is_compliant", False))
+        w_track = w.get("track_id")
         worker_rec = WorkerRecord(
             session_id=session.id,
             frame_idx=0,
-            track_id=w.get("track_id"),
+            track_id=w_track,
+            worker_id=f"W-{w_track}" if w_track else None,
+            camera_code=cam_code,
+            location=cam_location,
             bbox_x1=bbox.get("x1") if isinstance(bbox, dict) else None,
             bbox_y1=bbox.get("y1") if isinstance(bbox, dict) else None,
             bbox_x2=bbox.get("x2") if isinstance(bbox, dict) else None,
@@ -129,10 +167,41 @@ async def detect_image(
             glove_worn=checklist.get("glove") if checklist else None,
             sepatu_worn=checklist.get("sepatu") if checklist else None,
             kacamata_worn=checklist.get("kacamata") if checklist else None,
-            is_compliant=bool(w.get("is_compliant", False)),
+            is_compliant=is_comp,
+            status="open" if not is_comp else None,
+            missing_apd=json.dumps(missing_list) if not is_comp else None,
             detection_details=json.dumps(w),
         )
         db.add(worker_rec)
+        await db.flush()
+
+        if not is_comp:
+            v_rec = Violation(
+                worker_record_id=worker_rec.id,
+                session_id=session.id,
+                worker_id=f"W-{w.get('track_id')}" if w.get("track_id") else f"W-{worker_rec.id}",
+                worker_role="Worker",
+                status="open",
+                missing_apd=json.dumps(missing_list),
+                camera_code=cam_code,
+                location=cam_location,
+                confidence=w.get("person_conf"),
+                snapshot_path=ml_result.get("annotated_image_url"),
+                detected_at=get_now(),
+            )
+            db.add(v_rec)
+            await db.flush()
+            await ws_manager.broadcast({
+                "type": "violation",
+                "id": v_rec.id,
+                "worker_id": v_rec.worker_id,
+                "camera_code": cam_code,
+                "location": cam_location,
+                "missing_apd": missing_list,
+                "status": "open",
+                "confidence": v_rec.confidence,
+                "detected_at": to_iso_with_tz(v_rec.detected_at),
+            }, camera_code=cam_code)
 
     await db.commit()
     await db.refresh(session)
@@ -144,7 +213,9 @@ async def detect_image(
 
 @router.post("/video", response_model=VideoDetectionResponse)
 async def detect_video(
+    request: Request,
     file: UploadFile = File(...),
+    camera_code: Optional[str] = Query(None),
     sample_stride: Optional[int] = Query(None, ge=1),
     overlap_threshold: Optional[float] = Query(None, ge=0.0, le=1.0),
     person_conf: Optional[float] = Query(None, ge=0.0, le=1.0),
@@ -179,12 +250,15 @@ async def detect_video(
         content_type=file.content_type or "video/mp4",
         params=params,
     )
+    cam_code, cam_location = await _resolve_camera(camera_code, request, db)
 
     session = DetectionSession(
         session_code=ml_result.get("session_code"),
         source_type="video",
         filename=file.filename,
         annotated_output_path=ml_result.get("annotated_video_url"),
+        camera_code=cam_code,
+        location=cam_location,
         total_frames=ml_result.get("total_frames_processed", 0),
         total_workers_detected=ml_result.get("total_unique_workers", 0),
         compliant_workers_count=ml_result.get("compliant_workers_count", 0),
@@ -200,18 +274,59 @@ async def detect_video(
 
     workers_summary = ml_result.get("workers_summary", [])
     for w in workers_summary:
-        checklist = w.get("checklist", {})
+        is_comp = bool(w.get("is_compliant", False))
+        checklist = w.get("checklist") or {}
+        missing_list = []
+        if isinstance(checklist, dict):
+            for apd_name in ["helm", "kacamata", "glove", "sepatu"]:
+                if checklist.get(apd_name) is False:
+                    missing_list.append(apd_name)
+        w_track = w.get("track_id")
         worker_rec = WorkerRecord(
             session_id=session.id,
-            track_id=w.get("track_id"),
+            track_id=w_track,
+            worker_id=f"W-{w_track}" if w_track else None,
+            camera_code=cam_code,
+            location=cam_location,
             helm_worn=checklist.get("helm") if isinstance(checklist, dict) else w.get("helm_worn"),
             glove_worn=checklist.get("glove") if isinstance(checklist, dict) else w.get("glove_worn"),
             sepatu_worn=checklist.get("sepatu") if isinstance(checklist, dict) else w.get("sepatu_worn"),
             kacamata_worn=checklist.get("kacamata") if isinstance(checklist, dict) else w.get("kacamata_worn"),
-            is_compliant=bool(w.get("is_compliant", False)),
+            is_compliant=is_comp,
+            status="open" if not is_comp else None,
+            missing_apd=json.dumps(missing_list) if not is_comp else None,
             detection_details=json.dumps(w),
         )
         db.add(worker_rec)
+        await db.flush()
+
+        if not is_comp:
+            v_rec = Violation(
+                worker_record_id=worker_rec.id,
+                session_id=session.id,
+                worker_id=f"W-{w.get('track_id')}" if w.get("track_id") else f"W-{worker_rec.id}",
+                worker_role="Worker",
+                status="open",
+                missing_apd=json.dumps(missing_list),
+                camera_code=cam_code,
+                location=cam_location,
+                confidence=w.get("person_conf"),
+                snapshot_path=ml_result.get("annotated_video_url"),
+                detected_at=get_now(),
+            )
+            db.add(v_rec)
+            await db.flush()
+            await ws_manager.broadcast({
+                "type": "violation",
+                "id": v_rec.id,
+                "worker_id": v_rec.worker_id,
+                "camera_code": cam_code,
+                "location": cam_location,
+                "missing_apd": missing_list,
+                "status": "open",
+                "confidence": v_rec.confidence,
+                "detected_at": to_iso_with_tz(v_rec.detected_at),
+            }, camera_code=cam_code)
 
     await db.commit()
     await db.refresh(session)
@@ -224,7 +339,21 @@ async def detect_video(
 @router.post("/stream-frame", response_model=StreamFrameResponse)
 async def detect_stream_frame(payload: StreamFrameRequest):
     """Forward frame base64 ke ml-apd dan kembalikan hasil deteksi langsung tanpa simpan ke DB."""
-    result = await call_ml_stream_frame(payload.model_dump())
+    ml_payload = {
+        "client_id": payload.client_id,
+        "session_code": payload.session_code,
+        "frame_base64": payload.frame_base64,
+    }
+    result = await call_ml_stream_frame(ml_payload)
+    cam_code = payload.camera_code or payload.session_code
+    now_iso = to_iso_with_tz(get_now())
+    await ws_manager.broadcast({
+        "type": "detection",
+        "camera_code": cam_code,
+        "ts": now_iso,
+        "workers": result.get("workers", []),
+        "fps": result.get("fps"),
+    }, camera_code=cam_code)
     return StreamFrameResponse(**result)
 
 

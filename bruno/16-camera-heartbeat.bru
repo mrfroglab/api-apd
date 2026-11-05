@@ -1,0 +1,20 @@
+meta {
+  name: 16 - Camera Heartbeat
+  type: http
+  seq: 16
+}
+
+post {
+  url: {{baseUrl}}/cameras/CAM-01/heartbeat
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.status: eq online
+}

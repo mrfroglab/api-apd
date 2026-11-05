@@ -65,7 +65,7 @@ async def login(
     db: AsyncSession = Depends(get_db),
 ):
     """Login menggunakan JSON username dan password, menghasilkan JWT token."""
-    stmt = select(User).where(User.username == login_data.username)
+    stmt = select(User).where(or_(User.username == login_data.username, User.email == login_data.username))
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
 
@@ -101,7 +101,7 @@ async def login_for_access_token(
     db: AsyncSession = Depends(get_db),
 ):
     """Endpoint login form OAuth2 untuk Swagger UI `/docs`."""
-    stmt = select(User).where(User.username == form_data.username)
+    stmt = select(User).where(or_(User.username == form_data.username, User.email == form_data.username))
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
 

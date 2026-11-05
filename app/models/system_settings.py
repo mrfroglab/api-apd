@@ -29,6 +29,9 @@ class SystemSettings(Base):
 
     enable_temporal_persistence = Column(Boolean, default=True, nullable=False)
     temporal_memory_frames = Column(Integer, default=5, nullable=False)
+    sampling_fps = Column(Integer, default=5, nullable=False)
+    alarm_delay_s = Column(Integer, default=10, nullable=False)
+    iou_threshold = Column(Float, default=0.45, nullable=False)
 
     updated_at = Column(
         DateTime,
