@@ -52,6 +52,36 @@ async def _resolve_camera(camera_code: Optional[str], request: Request, db: Asyn
     return code, location
 
 
+async def _lookup_worker_role(db: AsyncSession, worker_id: str) -> Optional[str]:
+    """Ambil jabatan pekerja dari riwayat pelanggaran sebelumnya (None jika belum dikenal)."""
+    stmt = (
+        select(Violation.worker_role)
+        .where(
+            Violation.worker_id == worker_id,
+            Violation.worker_role.is_not(None),
+            Violation.worker_role != "Worker",
+        )
+        .order_by(Violation.detected_at.desc())
+        .limit(1)
+    )
+    return (await db.execute(stmt)).scalar_one_or_none()
+
+
+def _violation_event(v: Violation, missing_list: list[str]) -> dict:
+    return {
+        "type": "violation",
+        "id": v.id,
+        "worker_id": v.worker_id,
+        "worker_role": v.worker_role,
+        "camera_code": v.camera_code,
+        "location": v.location,
+        "missing_apd": missing_list,
+        "status": "open",
+        "confidence": v.confidence,
+        "detected_at": to_iso_with_tz(v.detected_at),
+    }
+
+
 @router.post("/image", response_model=ImageDetectionResponse)
 async def detect_image(
     request: Request,
@@ -141,6 +171,7 @@ async def detect_image(
     db.add(session)
     await db.flush()
 
+    pending_events: list[dict] = []
     for w in workers_data:
         bbox = w.get("bbox", {})
         checklist = w.get("checklist", {})
@@ -176,11 +207,12 @@ async def detect_image(
         await db.flush()
 
         if not is_comp:
+            v_worker_id = f"W-{w_track}" if w_track else f"W-{worker_rec.id}"
             v_rec = Violation(
                 worker_record_id=worker_rec.id,
                 session_id=session.id,
-                worker_id=f"W-{w.get('track_id')}" if w.get("track_id") else f"W-{worker_rec.id}",
-                worker_role="Worker",
+                worker_id=v_worker_id,
+                worker_role=await _lookup_worker_role(db, v_worker_id),
                 status="open",
                 missing_apd=json.dumps(missing_list),
                 camera_code=cam_code,
@@ -191,20 +223,14 @@ async def detect_image(
             )
             db.add(v_rec)
             await db.flush()
-            await ws_manager.broadcast({
-                "type": "violation",
-                "id": v_rec.id,
-                "worker_id": v_rec.worker_id,
-                "camera_code": cam_code,
-                "location": cam_location,
-                "missing_apd": missing_list,
-                "status": "open",
-                "confidence": v_rec.confidence,
-                "detected_at": to_iso_with_tz(v_rec.detected_at),
-            }, camera_code=cam_code)
+            pending_events.append(_violation_event(v_rec, missing_list))
 
     await db.commit()
     await db.refresh(session)
+
+    # Broadcast setelah commit agar FE tidak menerima ID pelanggaran yang batal tersimpan
+    for evt in pending_events:
+        await ws_manager.broadcast(evt, camera_code=cam_code)
 
     response_data = dict(ml_result)
     response_data["session_id"] = session.id
@@ -272,6 +298,7 @@ async def detect_video(
     db.add(session)
     await db.flush()
 
+    pending_events: list[dict] = []
     workers_summary = ml_result.get("workers_summary", [])
     for w in workers_summary:
         is_comp = bool(w.get("is_compliant", False))
@@ -301,11 +328,12 @@ async def detect_video(
         await db.flush()
 
         if not is_comp:
+            v_worker_id = f"W-{w_track}" if w_track else f"W-{worker_rec.id}"
             v_rec = Violation(
                 worker_record_id=worker_rec.id,
                 session_id=session.id,
-                worker_id=f"W-{w.get('track_id')}" if w.get("track_id") else f"W-{worker_rec.id}",
-                worker_role="Worker",
+                worker_id=v_worker_id,
+                worker_role=await _lookup_worker_role(db, v_worker_id),
                 status="open",
                 missing_apd=json.dumps(missing_list),
                 camera_code=cam_code,
@@ -316,20 +344,14 @@ async def detect_video(
             )
             db.add(v_rec)
             await db.flush()
-            await ws_manager.broadcast({
-                "type": "violation",
-                "id": v_rec.id,
-                "worker_id": v_rec.worker_id,
-                "camera_code": cam_code,
-                "location": cam_location,
-                "missing_apd": missing_list,
-                "status": "open",
-                "confidence": v_rec.confidence,
-                "detected_at": to_iso_with_tz(v_rec.detected_at),
-            }, camera_code=cam_code)
+            pending_events.append(_violation_event(v_rec, missing_list))
 
     await db.commit()
     await db.refresh(session)
+
+    # Broadcast setelah commit agar FE tidak menerima ID pelanggaran yang batal tersimpan
+    for evt in pending_events:
+        await ws_manager.broadcast(evt, camera_code=cam_code)
 
     response_data = dict(ml_result)
     response_data["session_id"] = session.id
@@ -351,6 +373,9 @@ async def detect_stream_frame(payload: StreamFrameRequest):
         "type": "detection",
         "camera_code": cam_code,
         "ts": now_iso,
+        "total_workers": result.get("total_workers", 0),
+        "compliant_workers": result.get("compliant_workers", 0),
+        "non_compliant_workers": result.get("non_compliant_workers", 0),
         "workers": result.get("workers", []),
         "fps": result.get("fps"),
     }, camera_code=cam_code)
