@@ -10,13 +10,12 @@ jobs:
   sync:
     name: Mirror Branch to Org Repo
     runs-on: ubuntu-latest
-    if: github.repository == 'januarsyah901/api-apd'
+    if: github.repository == 'januarsyah901/apd-api'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.SYNC_TOKEN }}
 
       - name: Push to mrfroglab
         run: |
